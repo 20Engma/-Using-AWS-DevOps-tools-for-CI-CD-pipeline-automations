@@ -1,0 +1,248 @@
+
+
+###  Create a CloudFormation Stack for the Test Environment
+
+1. **Open AWS Management Console:**
+   - Log in to the [AWS Management Console](https://aws.amazon.com/console/).
+
+2. **Navigate to CloudFormation:**
+   ```bash
+   aws cloudformation list-stacks
+   ```
+
+3. **Create a Stack:**
+   ```bash
+   aws cloudformation create-stack --stack-name TestStack --template-body file://path/to/test-environment-template.yaml --parameters ParameterKey=KeyName,ParameterValue=my-key
+   ```
+
+4. **Monitor Stack Creation:**
+   ```bash
+   aws cloudformation describe-stacks --stack-name TestStack
+   ```
+
+---
+
+###  Validate the Test Environment
+
+1. **Check Stack Outputs:**
+   ```bash
+   aws cloudformation describe-stacks --stack-name TestStack --query "Stacks[0].Outputs"
+   ```
+
+2. **Open the Application:**
+   - Use the URL from the Outputs section to verify functionality in your web browser.
+
+---
+
+###  Modify the Test Environment
+
+1. **Update CloudFormation Stack:**
+   ```bash
+   aws cloudformation update-stack --stack-name TestStack --template-body file://path/to/updated-test-environment-template.yaml --parameters ParameterKey=KeyName,ParameterValue=my-key
+   ```
+
+2. **Monitor Update Progress:**
+   ```bash
+   aws cloudformation describe-stacks --stack-name TestStack
+   ```
+
+---
+
+###  Deploy the Changes to the Test Environment
+
+1. **Navigate to CodePipeline:**
+   ```bash
+   aws codepipeline list-pipelines
+   ```
+
+2. **Create a New Pipeline:**
+   ```bash
+   aws codepipeline create-pipeline --pipeline file://path/to/pipeline-definition.json
+   ```
+
+3. **Add Source Stage:**
+   - In your pipeline definition JSON, specify your source.
+   - For example, for a CodeCommit source:
+   ```json
+   {
+       "name": "Source",
+       "actions": [
+           {
+               "name": "SourceAction",
+               "actionTypeId": {
+                   "category": "Source",
+                   "owner": "AWS",
+                   "provider": "CodeCommit",
+                   "version": "1"
+               },
+               ...
+           }
+       ]
+   }
+   ```
+
+4. **Add Build Stage:**
+   - In your pipeline definition JSON, specify the build stage with CodeBuild.
+   ```json
+   {
+       "name": "Build",
+       "actions": [
+           {
+               "name": "BuildAction",
+               "actionTypeId": {
+                   "category": "Build",
+                   "owner": "AWS",
+                   "provider": "CodeBuild",
+                   "version": "1"
+               },
+               ...
+           }
+       ]
+   }
+   ```
+
+---
+
+###  Add Approval Stage to Pipeline
+
+1. **Edit the Pipeline:**
+   ```bash
+   aws codepipeline get-pipeline --name releasePipeline > pipeline.json
+   ```
+
+2. **Add Approval Stage:**
+   - Modify `pipeline.json` to include the approval stage.
+   ```json
+   {
+       "name": "Approval",
+       "actions": [
+           {
+               "name": "ManualApproval",
+               "actionTypeId": {
+                   "category": "Approval",
+                   "owner": "AWS",
+                   "provider": "Manual",
+                   "version": "1"
+               },
+               ...
+           }
+       ]
+   }
+   ```
+
+3. **Update the Pipeline:**
+   ```bash
+   aws codepipeline update-pipeline --pipeline file://pipeline.json
+   ```
+
+---
+
+###  Automating the Testing of the Test Environment
+
+####  Add a New Stage to the Existing Release Pipeline
+
+1. **Edit the Test_Stack Stage:**
+   ```bash
+   aws codepipeline get-pipeline --name releasePipeline > pipeline.json
+   ```
+
+2. **Locate the Test_Stack Stage:**
+   - Update the DeployChangeSet action with `TestStackOutput` namespace in the `pipeline.json`.
+
+3. **Add New Stage:**
+   - Add a new stage `Service_Status` to `pipeline.json`.
+   ```json
+   {
+       "name": "Service_Status",
+       "actions": [
+           {
+               "name": "Test_Status",
+               "actionTypeId": {
+                   "category": "Invoke",
+                   "owner": "AWS",
+                   "provider": "Lambda",
+                   "version": "1"
+               },
+               ...
+           }
+       ]
+   }
+   ```
+
+4. **Update the Pipeline:**
+   ```bash
+   aws codepipeline update-pipeline --pipeline file://pipeline.json
+   ```
+
+####  Test the New Stage
+
+1. **Release Change:**
+   ```bash
+   aws codepipeline start-pipeline-execution --name releasePipeline
+   ```
+
+---
+
+###  Approving the Deletion of the Test Environment
+
+1. **Locate the Approval Stage:**
+   ```bash
+   aws codepipeline list-pipeline-executions --pipeline-name releasePipeline
+   ```
+
+2. **Review Purge_Test Action:**
+   - Check for the action status in the approval stage.
+
+3. **Approve Action:**
+   ```bash
+   aws codepipeline approve-pipeline-execution --pipeline-name releasePipeline --pipeline-execution-id <execution-id>
+   ```
+
+---
+
+### Examining AWS Lambda Functions with AWS X-Ray
+
+####  Navigate to the X-Ray Traces
+
+1. **Open CloudWatch:**
+   - Navigate to **CloudWatch** in the AWS Management Console.
+
+2. **Access X-Ray Traces:**
+   ```bash
+   aws xray get-service-graph --start-time <start-time> --end-time <end-time>
+   ```
+
+3. **Select a Trace:**
+   - Use the AWS Console or CLI to select and view a specific trace.
+
+####  Explore AWS X-Ray Trace Map
+
+1. **Access Trace Map:**
+   ```bash
+   aws xray get_traceSummaries --start-time <start-time> --end-time <end-time>
+   ```
+
+---
+
+###  Verify the Application Deployment to Production Environment
+
+1. **Check CloudFormation Stacks:**
+   ```bash
+   aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE
+   ```
+
+2. **Verify Stack Status:**
+   - Confirm that the test stack has been deleted and that the production stack exists.
+
+3. **Open Production Stack:**
+   ```bash
+   aws cloudformation describe-stacks --stack-name ProdStack
+   ```
+
+4. **Verify Application:**
+   - Copy the ELB DNS address:
+   ```bash
+   aws cloudformation describe-stacks --stack-name ProdStack --query "Stacks[0].Outputs"
+   ```
+   - Paste the URL in a new browser tab to ensure the application is displayed.
+
